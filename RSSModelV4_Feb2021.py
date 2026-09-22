@@ -622,11 +622,11 @@ def RSSModel (runName, outputPath, globalParameter, roadLRF, roadCustom, \
         #split into state highway and local road loads
         
         localSegment = segmentPivot[segmentPivot.SH == 0]
-        localSegment = localSegment.drop(columns = ["SH"], axis = 1)
+        localSegment = localSegment.drop(columns=["SH"])
         
         
         stateSegment = segmentPivot[segmentPivot.SH == 1]
-        stateSegment = stateSegment.drop(["SH"], axis =1)
+        stateSegment = stateSegment.drop(columns=["SH"])
         
         #add as generated loads to the output dataframe
         
@@ -940,7 +940,7 @@ def RSSModel (runName, outputPath, globalParameter, roadLRF, roadCustom, \
         def StreamRisk (CCUscore, cumArea, riskName):
               risk = RESscore * CCUscore
               risk[cumArea == 0] = -1
-              riskText = np.zeros(lenCatch).astype(np.str)
+              riskText = np.zeros(lenCatch).astype(str)
               riskText[risk ==-1] = "No upstream sources"
               riskText[risk == 0] = "Lowest"
               riskText[risk == 1] = "Lower"
@@ -1014,7 +1014,7 @@ def RSSModel (runName, outputPath, globalParameter, roadLRF, roadCustom, \
             
             risk = coastRES * coastCCUscore
             risk[cumArea == 0] = -1
-            riskText = np.zeros(estLength).astype(np.str)  
+            riskText = np.zeros(estLength).astype(str)  
             riskText[(risk > 0) & (risk < 9)] = "Lower"
             riskText[risk ==-1] = "No upstream sources"
             riskText[risk == 0] = "Lowest"
