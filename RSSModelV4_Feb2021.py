@@ -1815,5 +1815,6 @@ def RSSModel (runName, outputPath, globalParameter, roadLRF, roadCustom, \
     return endMessage
 
 
-
-
+if __name__ == "__main__":
+    from run_model import main
+    main()
