@@ -1,0 +1,6 @@
+resources:
+  apps:
+    rss_model_app:
+      name: "rss-model-visualiser-${bundle.target}"
+      description: "Interactive Leaflet Contaminant Risk Visualiser for NIWA RSS Model"
+      source_code_path: "../app"

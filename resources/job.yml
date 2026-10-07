@@ -1,0 +1,33 @@
+resources:
+  jobs:
+    rss_model_simulation_job:
+      name: "[${bundle.target}] RSS Model Simulation"
+      parameters:
+        - name: scenario_name
+          default: "default_simulation"
+        - name: catalog
+          default: "${var.catalog}"
+        - name: schema
+          default: "${var.schema}"
+
+      tasks:
+        - task_key: run_simulation
+          job_cluster_key: rss_cluster
+          libraries:
+            - requirements: ../requirements.txt
+          spark_python_task:
+            python_file: ../src/run_pipeline_job.py
+            parameters:
+              - "--scenario"
+              - "{{job.parameters.scenario_name}}"
+              - "--catalog"
+              - "{{job.parameters.catalog}}"
+              - "--schema"
+              - "{{job.parameters.schema}}"
+
+      job_clusters:
+        - job_cluster_key: rss_cluster
+          new_cluster:
+            spark_version: "17.3.x-scala2.12"
+            node_type_id: "Standard_D16s_v3"
+            num_workers: 1

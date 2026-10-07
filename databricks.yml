@@ -1,0 +1,22 @@
+# Databricks Asset Bundle (DAB) configuration for NIWA RSS Model
+bundle:
+  name: rss-niwa
+
+include:
+  - resources/*.yml
+
+targets:
+  dev:
+    mode: development
+    default: true
+
+  prod:
+    mode: production
+    workspace:
+      root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}
+
+variables:
+  catalog:
+    default: "main"
+  schema:
+    default: "rss_niwa"
