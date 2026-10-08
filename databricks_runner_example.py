@@ -20,32 +20,20 @@ scenario = dbutils.widgets.get("scenario")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Load inputs
-# MAGIC
-# MAGIC Reads Hive metastore tables when available. Otherwise, reads the CSV files uploaded to `dbfs:/FileStore/rss_niwa/InputData/`.
+# MAGIC ## Load CSV inputs from DBFS
 
 # COMMAND ----------
 
 import pandas as pd
 
-try:
-    catchment_df = spark.table(f"{schema}.bronze_catchments").toPandas()
-    road_df = (
-        spark.table(f"{schema}.bronze_roads")
-        .toPandas()
-        .set_index("Concat_ID")
-    )
-    print("Loaded inputs from Hive metastore tables.")
-except Exception as error:
-    print(f"Could not load Hive tables ({error}). Loading CSV files from DBFS...")
-    input_dir = "/dbfs/FileStore/rss_niwa/InputData"
-    catchment_df = pd.read_csv(
-        f"{input_dir}/CatchmentDataREC2_4.csv", encoding="latin1"
-    )
-    road_df = (
-        pd.read_csv(f"{input_dir}/RAMMsegments.csv", encoding="latin1")
-        .set_index("Concat_ID")
-    )
+input_dir = "/dbfs/FileStore/rss_niwa/InputData"
+catchment_df = pd.read_csv(
+    f"{input_dir}/CatchmentDataREC2_4.csv", encoding="latin1"
+)
+road_df = (
+    pd.read_csv(f"{input_dir}/RAMMsegments.csv", encoding="latin1")
+    .set_index("Concat_ID")
+)
 
 print(f"Loaded {len(catchment_df):,} catchments and {len(road_df):,} road segments")
 
