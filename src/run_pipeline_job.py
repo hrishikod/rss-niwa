@@ -1,81 +1,110 @@
-"""
-Job task entry point for Databricks execution.
-Loads input datasets, runs rss_core simulation pipeline, and persists gold Delta tables.
-"""
-import argparse
-import sys
-import os
+# Databricks notebook source
+# MAGIC %md
+# MAGIC # NIWA RSS Model simulation job
+# MAGIC
+# MAGIC Loads the source tables, runs the model for the selected scenario, writes the results to Delta, and saves an interactive map.
 
-# Add repo root to path if needed
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+# COMMAND ----------
 
-from pyspark.sql import SparkSession
+# MAGIC %md
+# MAGIC ## Job parameters
+
+# COMMAND ----------
+
+dbutils.widgets.text("scenario_name", "default_simulation", "Scenario name")
+dbutils.widgets.text("schema", "rss_niwa", "Schema")
+
+scenario = dbutils.widgets.get("scenario_name")
+schema = dbutils.widgets.get("schema")
+
+print(f"=== Starting RSS Model Job: Scenario '{scenario}' ===")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Load inputs
+# MAGIC
+# MAGIC Reads `<schema>.bronze_catchments` and `<schema>.bronze_roads` from the Hive metastore. If those tables are unavailable, it reads the CSV files uploaded to `dbfs:/FileStore/rss_niwa/InputData/`.
+
+# COMMAND ----------
+
 import pandas as pd
-from rss_core import run_rss_pipeline, RSSParameters, generate_interactive_map_html
 
-
-def main():
-    parser = argparse.ArgumentParser(description="Run RSS Model in Databricks")
-    parser.add_argument("--scenario", default="default_simulation", help="Scenario run name")
-    parser.add_argument("--catalog", default="main", help="Unity Catalog name")
-    parser.add_argument("--schema", default="rss_niwa", help="Schema name")
-    args = parser.parse_args()
-
-    spark = SparkSession.builder.getOrCreate()
-    print(f"=== Starting RSS Model Job: Scenario '{args.scenario}' ===")
-
-    # 1. Load inputs from Delta tables if available, else fallback to files
-    try:
-        catch_df = spark.table(f"{args.catalog}.{args.schema}.bronze_catchments").toPandas()
-        road_df = spark.table(f"{args.catalog}.{args.schema}.bronze_roads").toPandas().set_index("Concat_ID")
-        print("Loaded inputs from Delta tables.")
-    except Exception as e:
-        print(f"Could not load Delta tables ({e}). Loading from CSV...")
-        catch_df = pd.read_csv("InputData/CatchmentDataREC2_4.csv", encoding="latin1")
-        road_df = pd.read_csv("InputData/RAMMsegments.csv", encoding="latin1").set_index("Concat_ID")
-
-    # 2. Run simulation pipeline
-    result = run_rss_pipeline(
-        catchment_df=catch_df,
-        road_df=road_df,
-        params=RSSParameters(),
-        verbose=True
+try:
+    catchment_df = spark.table(f"{schema}.bronze_catchments").toPandas()
+    road_df = (
+        spark.table(f"{schema}.bronze_roads")
+        .toPandas()
+        .set_index("Concat_ID")
+    )
+    print("Loaded inputs from Delta tables.")
+except Exception as error:
+    print(f"Could not load Hive tables ({error}). Loading CSV files from DBFS...")
+    input_dir = "/dbfs/FileStore/rss_niwa/InputData"
+    catchment_df = pd.read_csv(
+        f"{input_dir}/CatchmentDataREC2_4.csv", encoding="latin1"
+    )
+    road_df = (
+        pd.read_csv(f"{input_dir}/RAMMsegments.csv", encoding="latin1")
+        .set_index("Concat_ID")
     )
 
-    # 3. Write results to Delta Lake
-    stream_spark_df = spark.createDataFrame(result.stream_results)
-    coastal_spark_df = spark.createDataFrame(result.coastal_results)
+# COMMAND ----------
 
-    stream_table = f"{args.catalog}.{args.schema}.gold_stream_risks_{args.scenario}"
-    coastal_table = f"{args.catalog}.{args.schema}.gold_coastal_risks_{args.scenario}"
+# MAGIC %md
+# MAGIC ## Run the model
 
-    print(f"Writing stream risks to {stream_table}...")
-    stream_spark_df.write.format("delta").mode("overwrite").saveAsTable(stream_table)
+# COMMAND ----------
 
-    print(f"Writing coastal risks to {coastal_table}...")
-    coastal_spark_df.write.format("delta").mode("overwrite").saveAsTable(coastal_table)
+from rss_core import RSSParameters, run_rss_pipeline
 
-    # 4. Generate visualization HTML and save to DBFS / volume
-    html_str = generate_interactive_map_html(
-        result.stream_results,
-        result.coastal_results,
-        title=f"NIWA RSS Model - {args.scenario}"
-    )
+result = run_rss_pipeline(
+    catchment_df=catchment_df,
+    road_df=road_df,
+    params=RSSParameters(),
+    verbose=True,
+)
 
-    out_html_path = f"/Volumes/{args.catalog}/{args.schema}/visualisations/{args.scenario}.html"
-    try:
-        with open(out_html_path, "w", encoding="utf-8") as f:
-            f.write(html_str)
-        print(f"Saved visualizer to volume: {out_html_path}")
-    except Exception:
-        # Fallback to local file
-        with open(f"{args.scenario}_visualiser.html", "w", encoding="utf-8") as f:
-            f.write(html_str)
-        print(f"Saved local visualizer: {args.scenario}_visualiser.html")
+print(f"Stream simulation generated: {len(result.stream_results):,} records")
+print(f"Coastal simulation generated: {len(result.coastal_results):,} records")
 
-    print("=== Simulation job complete. ===")
+# COMMAND ----------
 
+# MAGIC %md
+# MAGIC ## Save results to Delta
 
-if __name__ == "__main__":
-    main()
+# COMMAND ----------
 
+stream_table = f"{schema}.gold_stream_risks_{scenario}"
+coastal_table = f"{schema}.gold_coastal_risks_{scenario}"
+
+spark.createDataFrame(result.stream_results).write.format("delta").mode("overwrite").saveAsTable(stream_table)
+spark.createDataFrame(result.coastal_results).write.format("delta").mode("overwrite").saveAsTable(coastal_table)
+
+print(f"Saved {stream_table} and {coastal_table}")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Save and display the interactive map
+
+# COMMAND ----------
+
+from rss_core import generate_interactive_map_html
+
+html_content = generate_interactive_map_html(
+    result.stream_results,
+    result.coastal_results,
+    title=f"NIWA RSS Model - {scenario}",
+)
+
+visualizer_path = f"dbfs:/FileStore/{schema}/visualisations/{scenario}.html"
+dbutils.fs.mkdirs(f"dbfs:/FileStore/{schema}/visualisations")
+dbutils.fs.put(visualizer_path, html_content, overwrite=True)
+print(f"Saved visualizer to {visualizer_path}")
+
+displayHTML(html_content)
+
+# COMMAND ----------
+
+print("=== Simulation job complete. ===")
