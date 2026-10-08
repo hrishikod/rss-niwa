@@ -25,6 +25,7 @@ scenario = dbutils.widgets.get("scenario")
 # COMMAND ----------
 
 import pandas as pd
+import re
 
 input_dir = "/dbfs/FileStore/rss_niwa/InputData"
 catchment_df = pd.read_csv(
@@ -63,11 +64,24 @@ print(f"Coastal simulation generated: {len(result.coastal_results):,} records")
 
 # COMMAND ----------
 
-stream_table = f"{schema}.gold_stream_risks_{scenario}"
-coastal_table = f"{schema}.gold_coastal_risks_{scenario}"
+spark.sql(f"CREATE DATABASE IF NOT EXISTS `hive_metastore`.`{schema}`")
 
-spark.createDataFrame(result.stream_results).write.format("delta").mode("overwrite").saveAsTable(stream_table)
-spark.createDataFrame(result.coastal_results).write.format("delta").mode("overwrite").saveAsTable(coastal_table)
+stream_table = f"hive_metastore.{schema}.stream_risks"
+coastal_table = f"hive_metastore.{schema}.coastal_risks"
+
+def delta_safe_columns(dataframe):
+    dataframe = dataframe.copy()
+    dataframe.columns = [
+        re.sub(r"_+", "_", re.sub(r"[^A-Za-z0-9_]", "_", name)).strip("_")
+        for name in dataframe.columns
+    ]
+    if len(dataframe.columns) != len(set(dataframe.columns)):
+        raise ValueError("Column name normalization produced duplicate names")
+    return dataframe
+
+
+spark.createDataFrame(delta_safe_columns(result.stream_results)).write.format("delta").mode("overwrite").saveAsTable(stream_table)
+spark.createDataFrame(delta_safe_columns(result.coastal_results)).write.format("delta").mode("overwrite").saveAsTable(coastal_table)
 
 print(f"Saved {stream_table} and {coastal_table}")
 
