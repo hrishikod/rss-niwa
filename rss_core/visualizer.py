@@ -9,6 +9,34 @@ import pandas as pd
 from typing import Optional
 
 
+def attach_map_points(
+    stream_df: pd.DataFrame,
+    coastal_df: pd.DataFrame,
+    points_path: str,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Join WGS84 map points to model results by nzsegment."""
+    points = pd.read_csv(points_path, usecols=["kind", "nzsegment", "lat", "lng"])
+    mapped = []
+    stream_lookup = None
+    for kind, results in (("stream", stream_df), ("coastal", coastal_df)):
+        lookup = points.loc[points["kind"] == kind, ["nzsegment", "lat", "lng"]]
+        if lookup["nzsegment"].duplicated().any():
+            raise ValueError(f"Duplicate nzsegment values in {kind} map points")
+        if kind == "stream":
+            stream_lookup = lookup
+        if "lat" in results.columns or "lng" in results.columns:
+            raise ValueError("Results already contain map coordinates")
+        mapped.append(results.merge(lookup, on="nzsegment", how="left", validate="many_to_one"))
+
+    missing_coastal = mapped[1]["lat"].isna()
+    if missing_coastal.any():
+        fallback = mapped[1].loc[missing_coastal, ["nzsegment"]].merge(
+            stream_lookup, on="nzsegment", how="left", validate="many_to_one"
+        )
+        mapped[1].loc[missing_coastal, ["lat", "lng"]] = fallback[["lat", "lng"]].to_numpy()
+    return mapped[0], mapped[1]
+
+
 def generate_interactive_map_html(
     stream_df: pd.DataFrame,
     coastal_df: pd.DataFrame,

@@ -7,7 +7,7 @@ from .emissions import calculate_road_emissions, calculate_urban_emissions
 from .accumulator import accumulate_network_loads
 from .risk import calculate_stream_risk, calculate_coastal_risk
 from .pipeline import run_rss_pipeline, RSSModelResult
-from .visualizer import generate_interactive_map_html
+from .visualizer import attach_map_points, generate_interactive_map_html
 
 __all__ = [
     "RSSParameters",
@@ -18,6 +18,6 @@ __all__ = [
     "calculate_coastal_risk",
     "run_rss_pipeline",
     "RSSModelResult",
+    "attach_map_points",
     "generate_interactive_map_html"
 ]
-
