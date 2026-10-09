@@ -51,6 +51,17 @@ rss-niwa/
 
 ## 🚀 How to Run the Model
 
+### Databricks map lookup
+
+The Databricks notebooks map model results by joining `nzsegment` to representative points from the original WGS84 shape files. Build and upload the lookup from the repository root:
+
+```bash
+uv run python scripts/build_map_points.py
+databricks fs cp InputData/NzsegmentMapPoints.csv dbfs:/FileStore/rss_niwa/InputData/NzsegmentMapPoints.csv --overwrite -p DEV-AAM
+```
+
+The lookup is used only for visualization. The stream points come from `SubCatchWGS84.shp`, and coastal points come from `TerminalsWGS84.shp` with a subcatchment fallback for missing terminals.
+
 ### 1. Command-Line Interface (CLI) — *Recommended*
 
 Run headlessly without relying on a graphical user interface using `run_model.py`:
@@ -131,4 +142,3 @@ Every run outputs the following into `Outputs/<run_name>/`:
 ### Interactive Visualizers
 * [`visualise_test_leaflet.html`](file:///Users/hrishikodthuguli/Projects/rss-niwa/visualise_test_leaflet.html): Interactive Leaflet GIS map with OpenStreetMap/Satellite tiles, search by `nzsegment`, risk tier filtering, and popup attribute inspection.
 * [`visualise_test_outputs.html`](file:///Users/hrishikodthuguli/Projects/rss-niwa/visualise_test_outputs.html): Static map dashboard for side-by-side scenario comparisons and reporting.
-

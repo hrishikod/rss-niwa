@@ -2,7 +2,7 @@
 # MAGIC %md
 # MAGIC # NIWA RSS Model: Databricks runner example
 # MAGIC
-# MAGIC Reads the bronze input tables, runs the RSS simulation, writes scenario results to Delta, and displays the interactive map.
+# MAGIC Reads the input CSVs, runs the RSS simulation, writes results to Delta, and maps them using an `nzsegment` coordinate lookup.
 
 # COMMAND ----------
 
@@ -44,6 +44,15 @@ print(f"Loaded {len(catchment_df):,} catchments and {len(road_df):,} road segmen
 # MAGIC ## Run the model
 
 # COMMAND ----------
+
+import sys
+from pathlib import Path
+
+notebook_path = dbutils.notebook.entry_point.getDbutils().notebook().getContext().notebookPath().get()
+bundle_root = (Path("/Workspace") / notebook_path.lstrip("/")).parent
+if not (bundle_root / "rss_core").is_dir():
+    raise FileNotFoundError(f"rss_core package not found at {bundle_root / 'rss_core'}")
+sys.path.insert(0, str(bundle_root))
 
 from rss_core import RSSParameters, run_rss_pipeline
 
@@ -89,15 +98,33 @@ print(f"Saved {stream_table} and {coastal_table}")
 
 # MAGIC %md
 # MAGIC ## Display the interactive map
+# MAGIC
+# MAGIC The map lookup is generated from `InputShapes/SubCatchWGS84.shp` and `InputShapes/TerminalsWGS84.shp` and uploaded to `dbfs:/FileStore/rss_niwa/InputData/NzsegmentMapPoints.csv`.
 
 # COMMAND ----------
 
-from rss_core import generate_interactive_map_html
+from rss_core import attach_map_points, generate_interactive_map_html
 
-displayHTML(
-    generate_interactive_map_html(
-        result.stream_results,
-        result.coastal_results,
-        title=f"NIWA RSS Model - {scenario}",
-    )
+mapped_stream, mapped_coastal = attach_map_points(
+    result.stream_results,
+    result.coastal_results,
+    f"{input_dir}/NzsegmentMapPoints.csv",
 )
+print(
+    f"Mapped {mapped_stream['lat'].notna().sum():,} stream and "
+    f"{mapped_coastal['lat'].notna().sum():,} coastal reaches"
+)
+
+html_content = generate_interactive_map_html(
+    mapped_stream,
+    mapped_coastal,
+    title=f"NIWA RSS Model - {scenario}",
+)
+
+visualizer_directory = f"dbfs:/FileStore/{schema}/visualisations"
+visualizer_path = f"{visualizer_directory}/{scenario}.html"
+dbutils.fs.mkdirs(visualizer_directory)
+dbutils.fs.put(visualizer_path, html_content, overwrite=True)
+print(f"Saved map to {visualizer_path}")
+
+displayHTML(html_content)

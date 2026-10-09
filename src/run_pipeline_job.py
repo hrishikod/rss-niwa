@@ -2,7 +2,7 @@
 # MAGIC %md
 # MAGIC # NIWA RSS Model simulation job
 # MAGIC
-# MAGIC Loads the source tables, runs the model for the selected scenario, writes the results to Delta, and saves an interactive map.
+# MAGIC Loads the input CSVs, runs the model for the selected scenario, writes the results to Delta, and saves an interactive map.
 
 # COMMAND ----------
 
@@ -45,6 +45,15 @@ print(f"Loaded {len(catchment_df):,} catchments and {len(road_df):,} road segmen
 # MAGIC ## Run the model
 
 # COMMAND ----------
+
+import sys
+from pathlib import Path
+
+notebook_path = dbutils.notebook.entry_point.getDbutils().notebook().getContext().notebookPath().get()
+bundle_root = (Path("/Workspace") / notebook_path.lstrip("/")).parent.parent
+if not (bundle_root / "rss_core").is_dir():
+    raise FileNotFoundError(f"rss_core package not found at {bundle_root / 'rss_core'}")
+sys.path.insert(0, str(bundle_root))
 
 from rss_core import RSSParameters, run_rss_pipeline
 
@@ -90,14 +99,26 @@ print(f"Saved {stream_table} and {coastal_table}")
 
 # MAGIC %md
 # MAGIC ## Save and display the interactive map
+# MAGIC
+# MAGIC The map lookup is generated from the `InputShapes` shapefiles and uploaded to `dbfs:/FileStore/rss_niwa/InputData/NzsegmentMapPoints.csv`.
 
 # COMMAND ----------
 
-from rss_core import generate_interactive_map_html
+from rss_core import attach_map_points, generate_interactive_map_html
 
-html_content = generate_interactive_map_html(
+mapped_stream, mapped_coastal = attach_map_points(
     result.stream_results,
     result.coastal_results,
+    f"{input_dir}/NzsegmentMapPoints.csv",
+)
+print(
+    f"Mapped {mapped_stream['lat'].notna().sum():,} stream and "
+    f"{mapped_coastal['lat'].notna().sum():,} coastal reaches"
+)
+
+html_content = generate_interactive_map_html(
+    mapped_stream,
+    mapped_coastal,
     title=f"NIWA RSS Model - {scenario}",
 )
 
