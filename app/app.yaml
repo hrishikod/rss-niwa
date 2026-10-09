@@ -1,0 +1,4 @@
+command: ["streamlit", "run", "app.py"]
+env:
+  - name: RSS_SCHEMA
+    value: rss_niwa

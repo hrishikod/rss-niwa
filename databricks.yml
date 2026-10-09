@@ -14,9 +14,12 @@ targets:
     mode: production
     workspace:
       root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}
+    variables:
+      app_name: rss-niwa-prod
 
 variables:
-  catalog:
-    default: "main"
+  app_name:
+    description: "App name for this developer and workspace"
+    default: rss-niwa-${workspace.current_user.domain_friendly_name}
   schema:
     default: "rss_niwa"

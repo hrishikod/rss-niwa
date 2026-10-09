@@ -5,8 +5,6 @@ resources:
       parameters:
         - name: scenario_name
           default: "default_simulation"
-        - name: catalog
-          default: "${var.catalog}"
         - name: schema
           default: "${var.schema}"
 
@@ -15,15 +13,11 @@ resources:
           job_cluster_key: rss_cluster
           libraries:
             - requirements: ../requirements.txt
-          spark_python_task:
-            python_file: ../src/run_pipeline_job.py
-            parameters:
-              - "--scenario"
-              - "{{job.parameters.scenario_name}}"
-              - "--catalog"
-              - "{{job.parameters.catalog}}"
-              - "--schema"
-              - "{{job.parameters.schema}}"
+          notebook_task:
+            notebook_path: ../src/run_pipeline_job.py
+            base_parameters:
+              scenario_name: "{{job.parameters.scenario_name}}"
+              schema: "{{job.parameters.schema}}"
 
       job_clusters:
         - job_cluster_key: rss_cluster
